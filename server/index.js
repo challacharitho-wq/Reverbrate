@@ -12,7 +12,6 @@ import recommendRoutes from './routes/recommendRoutes.js'
 const app = express()
 const PORT = Number(process.env.PORT) || 5000
 
-import cors from 'cors'
 
 const allowedOrigins = [
   'http://localhost:5173',
