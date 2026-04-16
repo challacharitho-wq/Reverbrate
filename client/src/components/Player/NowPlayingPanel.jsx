@@ -2,21 +2,23 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Heart, Pause, Play, SkipBack,
   SkipForward, Share2, X, Music,
-  User, Mic2
+  Mic2
 } from 'lucide-react'
 import usePlayerStore from '../../store/usePlayerStore.js'
+import useLikeStore from '../../store/useLikeStore.js'
 import useYouTubePlayer from '../../hooks/useYouTubePlayer'
+import { songService } from '../../services/api.js'
+import toast from 'react-hot-toast'
 import {
   formatTime,
-  formatListeners,
-  truncateText,
 } from '../../utils/formatDuration.js'
 
 export default function NowPlayingPanel({
   open, onClose, track, isEnriching
 }) {
   const [activeTab, setActiveTab]   = useState('lyrics')
-  const [showFullBio, setShowFullBio] = useState(false)
+  const [similarFallback, setSimilarFallback] = useState([])
+  const [loadingSimilarFallback, setLoadingSimilarFallback] = useState(false)
   const lyricsRef = useRef(null)
   const activeLyricRef = useRef(null)
 
@@ -26,6 +28,10 @@ export default function NowPlayingPanel({
   const togglePlayPause = usePlayerStore((s) => s.togglePlayPause)
   const playNext      = usePlayerStore((s) => s.playNext)
   const playPrev      = usePlayerStore((s) => s.playPrev)
+  const playYouTubeTrack = usePlayerStore((s) => s.playYouTubeTrack)
+  const fetchLikes = useLikeStore((s) => s.fetchLikes)
+  const toggleLike = useLikeStore((s) => s.toggleLike)
+  const likedIds = useLikeStore((s) => s.likedIds)
 
   const { pauseVideo, resumeVideo, seekTo } = useYouTubePlayer()
 
@@ -41,9 +47,16 @@ export default function NowPlayingPanel({
   useEffect(() => {
     if (!open) {
       setActiveTab('lyrics')
-      setShowFullBio(false)
+      setSimilarFallback([])
+      setLoadingSimilarFallback(false)
     }
   }, [open])
+
+  useEffect(() => {
+    if (open) {
+      fetchLikes()
+    }
+  }, [fetchLikes, open])
 
   // ── Parse lyrics into lines ────────────────────────
   const lyricLines = (track?.lyrics || '')
@@ -86,29 +99,102 @@ export default function NowPlayingPanel({
     seekTo(Math.max(0, Math.min(1, percent)) * duration)
   }
 
+  const handleShare = async () => {
+    const url = `https://youtube.com/watch?v=${track.youtubeId || track.id}`
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: track.title,
+          text: `${track.title} by ${track.artist}`,
+          url,
+        })
+        return
+      }
+
+      await navigator.clipboard.writeText(url)
+      toast.success('Link copied!')
+    } catch (err) {
+      console.error('[nowPlaying] share failed', err)
+      toast.error('Unable to share track')
+    }
+  }
+
+  const handleToggleLike = async () => {
+    try {
+      const liked = await toggleLike(track)
+      if (liked) {
+        toast.success('Added to Liked Songs')
+      } else {
+        toast('Removed from Liked Songs')
+      }
+    } catch (err) {
+      console.error('[nowPlaying] toggleLike failed', err)
+      toast.error('Could not update liked songs')
+    }
+  }
+
+  const handleFindSimilar = async () => {
+    if (!track?.artist) return
+
+    setLoadingSimilarFallback(true)
+
+    try {
+      const { data } = await songService.search(`${track.artist} similar artists`)
+      const results = data?.results || []
+      const uniqueArtists = []
+      const seen = new Set()
+
+      results.forEach((result) => {
+        const artistName = result.artist || result.channelTitle || result.title
+        if (!artistName || seen.has(artistName)) return
+        seen.add(artistName)
+        uniqueArtists.push({
+          name: artistName,
+          image: result.thumbnail || '',
+          track: result,
+        })
+      })
+
+      setSimilarFallback(uniqueArtists.slice(0, 6))
+    } catch (err) {
+      console.error('[nowPlaying] similar fallback failed', err)
+      toast.error('Could not find similar artists')
+    } finally {
+      setLoadingSimilarFallback(false)
+    }
+  }
+
+  const handlePlaySimilarArtist = async (artistName) => {
+    try {
+      const { data } = await songService.search(artistName)
+      const firstTrack = data?.results?.[0]
+      if (firstTrack) {
+        playYouTubeTrack(firstTrack)
+      }
+    } catch (err) {
+      console.error('[nowPlaying] play similar artist failed', err)
+      toast.error('Could not load artist track')
+    }
+  }
+
   // ── Derived values ─────────────────────────────────
-  const artistBio      = track?.artistBio  || ''
-  const artistImage    = track?.artistImage
   const tags           = track?.artistTags   ?? []
   const similar        = track?.similarArtists ?? []
   const hasLyrics      = Boolean(track?.hasLyrics)
   const progress       = duration ? currentTime / duration : 0
   const progressPct    = Math.min(100, Math.round(progress * 100))
+  const isLiked        = likedIds.has(track?.youtubeId || track?.id)
   const albumText      = [
     track?.albumName,
     track?.releaseDate?.slice(0, 4),
   ].filter(Boolean).join(' • ')
-
-  const displayedBio = showFullBio
-    ? artistBio
-    : truncateText(artistBio, 260)
 
   if (!open || !track) return null
 
   // ── Tab config ─────────────────────────────────────
   const tabs = [
     { id: 'lyrics',  label: 'Lyrics',  icon: Mic2 },
-    { id: 'artist',  label: 'Artist',  icon: User },
     { id: 'similar', label: 'Similar', icon: Music },
   ]
 
@@ -248,14 +334,26 @@ export default function NowPlayingPanel({
             {/* Action row */}
             <div className="flex gap-4 text-sm text-zinc-400">
               <button
+                type="button"
+                onClick={handleToggleLike}
                 className="flex items-center gap-2 rounded-full
                            border border-zinc-800 px-4 py-2
                            hover:border-violet-500 hover:text-white
                            transition"
+                style={{
+                  color: isLiked ? 'var(--accent-light)' : undefined,
+                  borderColor: isLiked ? 'var(--accent)' : undefined,
+                }}
               >
-                <Heart className="h-4 w-4" /> Favorite
+                <Heart
+                  className="h-4 w-4"
+                  fill={isLiked ? 'currentColor' : 'none'}
+                />
+                Favorite
               </button>
               <button
+                type="button"
+                onClick={handleShare}
                 className="flex items-center gap-2 rounded-full
                            border border-zinc-800 px-4 py-2
                            hover:border-violet-500 hover:text-white
@@ -356,69 +454,7 @@ export default function NowPlayingPanel({
               )}
 
               {/* ── ARTIST TAB ───────────────────────── */}
-              {activeTab === 'artist' && (
-                <div className="h-full overflow-y-auto p-6"
-                     style={{ maxHeight: '400px' }}>
-                  {artistImage && (
-                    <img
-                      src={artistImage}
-                      alt={track.artist}
-                      className="mb-4 h-40 w-full rounded-2xl
-                                 object-cover object-top"
-                    />
-                  )}
 
-                  <p className="text-xl font-bold text-white">
-                    {track.artist}
-                  </p>
-
-                  {track.artistListeners && (
-                    <p className="mt-1 text-sm text-violet-400">
-                      {formatListeners(track.artistListeners)}
-                      {' '}monthly listeners
-                    </p>
-                  )}
-
-                  {tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full border
-                                     border-violet-500/30
-                                     bg-violet-500/10 px-3 py-0.5
-                                     text-xs text-violet-300"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {artistBio ? (
-                    <div className="mt-4">
-                      <p className="text-sm leading-relaxed
-                                    text-zinc-400">
-                        {displayedBio}
-                      </p>
-                      {artistBio.length > 260 && (
-                        <button
-                          onClick={() =>
-                            setShowFullBio((v) => !v)}
-                          className="mt-2 text-xs text-violet-400
-                                     hover:text-violet-300 transition"
-                        >
-                          {showFullBio ? 'Show less' : 'Show more'}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-sm text-zinc-500">
-                      No bio available
-                    </p>
-                  )}
-                </div>
-              )}
 
               {/* ── SIMILAR TAB ──────────────────────── */}
               {activeTab === 'similar' && (
@@ -427,13 +463,15 @@ export default function NowPlayingPanel({
                   {similar.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3">
                       {similar.map((artist) => (
-                        <div
+                        <button
                           key={artist.name}
+                          type="button"
+                          onClick={() => handlePlaySimilarArtist(artist.name)}
                           className="flex items-center gap-3
                                      rounded-2xl border
                                      border-zinc-800 bg-zinc-900
                                      p-3 hover:border-violet-500
-                                     transition cursor-pointer"
+                                     transition cursor-pointer text-left"
                         >
                           {artist.image ? (
                             <img
@@ -456,8 +494,44 @@ export default function NowPlayingPanel({
                                         font-medium text-white">
                             {artist.name}
                           </p>
-                        </div>
+                        </button>
                       ))}
+                    </div>
+                  ) : similarFallback.length > 0 ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-zinc-400">
+                        Similar artist discovery results for {track.artist}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {similarFallback.map((artist) => (
+                          <button
+                            key={artist.name}
+                            type="button"
+                            onClick={() => playYouTubeTrack(artist.track)}
+                            className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 text-left transition hover:border-violet-500"
+                          >
+                            {artist.image ? (
+                              <img
+                                src={artist.image}
+                                alt={artist.name}
+                                className="h-10 w-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-600 text-white">
+                                {artist.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-white">
+                                {artist.name}
+                              </p>
+                              <p className="truncate text-xs text-zinc-400">
+                                Play top result
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex h-full flex-col
@@ -467,6 +541,21 @@ export default function NowPlayingPanel({
                       <p className="text-sm">
                         No similar artists found
                       </p>
+                      {track.artist ? (
+                        <button
+                          type="button"
+                          onClick={handleFindSimilar}
+                          disabled={loadingSimilarFallback}
+                          className="rounded-full px-4 py-2 text-sm transition"
+                          style={{
+                            background: 'var(--accent)',
+                            color: 'var(--text-primary)',
+                            opacity: loadingSimilarFallback ? 0.7 : 1,
+                          }}
+                        >
+                          {loadingSimilarFallback ? 'Searching...' : 'Find Similar'}
+                        </button>
+                      ) : null}
                     </div>
                   )}
                 </div>

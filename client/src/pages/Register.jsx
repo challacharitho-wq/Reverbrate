@@ -27,7 +27,7 @@ export default function Register() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate('/dashboard', { replace: true })
+      navigate('/onboarding', { replace: true })
     }
   }, [isLoading, isAuthenticated, navigate])
 
@@ -36,8 +36,8 @@ export default function Register() {
     clearError()
     setPending(true)
     try {
-      await register(name, email, password)
-      navigate('/dashboard', { replace: true })
+      const data = await register(name, email, password)
+      navigate(data?.user?.onboardingDone ? '/dashboard' : '/onboarding', { replace: true })
     } catch {
       // Error surfaced via store
     } finally {

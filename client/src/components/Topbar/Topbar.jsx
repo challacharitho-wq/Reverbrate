@@ -31,7 +31,7 @@ export default function Topbar({ title }) {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
 
-  const [query, setQuery] = useState('')
+  const [q, setQ] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -49,14 +49,11 @@ export default function Topbar({ title }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  function handleSearchSubmit(e) {
-    e.preventDefault()
-    const q = query.trim()
-    if (!q) {
-      navigate('/search')
-      return
-    }
-    navigate(`/search?q=${encodeURIComponent(q)}`)
+  function submitSearch() {
+    const nextQuery = q.trim()
+    if (!nextQuery) return
+    navigate(`/search?q=${encodeURIComponent(nextQuery)}`)
+    setQ('')
   }
 
   function handleLogout() {
@@ -82,7 +79,10 @@ export default function Topbar({ title }) {
       </h1>
 
       <form
-        onSubmit={handleSearchSubmit}
+        onSubmit={(e) => {
+          e.preventDefault()
+          submitSearch()
+        }}
         className="mx-auto flex max-w-xl flex-1 justify-center"
       >
         <div
@@ -93,16 +93,26 @@ export default function Topbar({ title }) {
             transitionDuration: '150ms',
           }}
         >
-          <Search
-            className="pointer-events-none h-4 w-4 shrink-0"
+          <button
+            type="button"
+            onClick={submitSearch}
+            className="flex h-8 w-8 items-center justify-center rounded-full transition"
             style={{ color: 'var(--text-muted)' }}
-            aria-hidden
-          />
+            aria-label="Search"
+          >
+            <Search className="h-4 w-4 shrink-0" aria-hidden />
+          </button>
           <input
             type="search"
             name="q"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && q.trim()) {
+                e.preventDefault()
+                submitSearch()
+              }
+            }}
             placeholder="Search songs, artists, albums..."
             className="topbar-search-input w-full border-0 bg-transparent py-2.5 pl-2 pr-3 text-sm"
             style={{ color: 'var(--text-primary)' }}

@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Play } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore.js'
 import usePlayerStore from '../store/usePlayerStore.js'
-import { mockTracks } from '../data/mockTracks.js'
+import { historyService, recommendService } from '../services/api.js'
 
 function getGreetingPeriod() {
   const h = new Date().getHours()
@@ -15,16 +15,30 @@ function getGreetingPeriod() {
   return 'evening'
 }
 
-function TrackCard({ track, play }) {
+function TrackCard({ track, onPlay }) {
+  const artwork = track.thumbnail || track.albumArt || ''
+
   return (
     <div
-      className="group relative w-[120px] shrink-0 transition-transform"
+      className="group relative w-[160px] shrink-0 cursor-pointer transition-transform"
       style={{ transitionDuration: '150ms' }}
+      onClick={() => onPlay(track)}
     >
       <div
-        className="relative h-[120px] w-[120px] overflow-hidden rounded-xl"
-        style={{ background: track.gradient }}
+        className="relative h-[160px] w-[160px] overflow-hidden rounded-xl"
+        style={{
+          background: artwork
+            ? 'var(--bg-card)'
+            : 'linear-gradient(135deg, var(--accent-glow), var(--bg-card))',
+        }}
       >
+        {artwork ? (
+          <img
+            src={artwork}
+            alt={track.title}
+            className="h-full w-full object-cover"
+          />
+        ) : null}
         <button
           type="button"
           className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
@@ -34,7 +48,7 @@ function TrackCard({ track, play }) {
           }}
           onClick={(e) => {
             e.stopPropagation()
-            play(track)
+            onPlay(track)
           }}
           aria-label={`Play ${track.title}`}
         >
@@ -65,11 +79,12 @@ function TrackCard({ track, play }) {
   )
 }
 
-function QuickPickRow({ track, play }) {
+function QuickPickRow({ track, onPlay }) {
   return (
     <div
-      className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors"
+      className="group flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition-colors"
       style={{ transitionDuration: '150ms' }}
+      onClick={() => onPlay(track)}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = 'var(--bg-hover)'
       }}
@@ -79,15 +94,26 @@ function QuickPickRow({ track, play }) {
     >
       <div
         className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg"
-        style={{ background: track.gradient }}
+        style={{
+          background: track.thumbnail
+            ? 'var(--bg-card)'
+            : 'linear-gradient(135deg, var(--accent-glow), var(--bg-card))',
+        }}
       >
+        {track.thumbnail ? (
+          <img
+            src={track.thumbnail}
+            alt={track.title}
+            className="h-full w-full object-cover"
+          />
+        ) : null}
         <button
           type="button"
           className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
           style={{ transitionDuration: '150ms' }}
           onClick={(e) => {
             e.stopPropagation()
-            play(track)
+            onPlay(track)
           }}
           aria-label={`Play ${track.title}`}
         >
@@ -126,20 +152,86 @@ function QuickPickRow({ track, play }) {
 
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user)
-  const play = usePlayerStore((s) => s.play)
+  const playYouTubeTrack = usePlayerStore((s) => s.playYouTubeTrack)
+  const playUploadedTrack = usePlayerStore((s) => s.playUploadedTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
+  const [recentlyPlayed, setRecentlyPlayed] = useState([])
+  const [recommended, setRecommended] = useState([])
+  const [loadingRecommended, setLoadingRecommended] = useState(true)
+  const [loadingHistory, setLoadingHistory] = useState(true)
 
   const greeting = useMemo(() => getGreetingPeriod(), [])
   const firstName = (user?.name || 'there').split(/\s+/)[0]
 
-  const recentlyPlayed = mockTracks.slice(0, 6)
-  const trending = mockTracks.slice(2, 8)
-  const quickPicks = mockTracks.slice(0, 6)
+  useEffect(() => {
+    const loadHomeData = async () => {
+      setLoadingHistory(true)
+      setLoadingRecommended(true)
 
-  function handlePlay(track) {
-    const index = mockTracks.findIndex((t) => t.id === track.id)
-    setQueue(mockTracks, index >= 0 ? index : 0)
-    play(track)
+      try {
+        const historyResponse = await historyService.get()
+        const historyItems = historyResponse.data?.history || historyResponse.data || []
+        setRecentlyPlayed(historyItems)
+      } catch (err) {
+        console.error('[dashboard] history load failed', err)
+        setRecentlyPlayed([])
+      } finally {
+        setLoadingHistory(false)
+      }
+
+      try {
+        const recommendResponse = await recommendService.get()
+        setRecommended(recommendResponse.data?.tracks || [])
+      } catch (err) {
+        console.error('[dashboard] recommendations load failed', err)
+        setRecommended([])
+      } finally {
+        setLoadingRecommended(false)
+      }
+    }
+
+    loadHomeData()
+  }, [])
+
+  function handlePlay(track, queue = []) {
+    const normalizedTrack = {
+      ...track,
+      youtubeId: track.youtubeId || track.trackId || track.id,
+      thumbnail: track.thumbnail || track.albumArt || '',
+    }
+
+    if (normalizedTrack.sourceType === 'upload') {
+      if (normalizedTrack.fileUrl) {
+        playUploadedTrack(normalizedTrack)
+      }
+      return
+    }
+
+    const normalizedQueue = queue.map((item) => ({
+      ...item,
+      youtubeId: item.youtubeId || item.trackId || item.id,
+      thumbnail: item.thumbnail || item.albumArt || '',
+    }))
+
+    const currentId = normalizedTrack.youtubeId
+    const index = normalizedQueue.findIndex(
+      (item) => (item.youtubeId || item.id) === currentId,
+    )
+
+    if (normalizedQueue.length > 0) {
+      setQueue(normalizedQueue, index >= 0 ? index : 0)
+    }
+
+    playYouTubeTrack(normalizedTrack)
+  }
+
+  function SkeletonCard() {
+    return (
+      <div
+        className="h-[220px] w-[160px] shrink-0 animate-pulse rounded-xl"
+        style={{ background: 'var(--bg-card)' }}
+      />
+    )
   }
 
   return (
@@ -163,20 +255,35 @@ export default function Dashboard() {
         >
           Recently Played
         </h3>
-        <div
-          className="hide-scrollbar flex gap-4 overflow-x-auto pb-2"
-          style={{ WebkitOverflowScrolling: 'touch' }}
-        >
-          {recentlyPlayed.map((track) => (
-            <div
-              key={track.id}
-              className="transition-transform hover:scale-[1.03]"
-              style={{ transitionDuration: '150ms' }}
-            >
-              <TrackCard track={track} play={handlePlay} />
-            </div>
-          ))}
-        </div>
+        {loadingHistory ? (
+          <div className="hide-scrollbar flex gap-4 overflow-x-auto pb-2">
+            {[...Array(4)].map((_, index) => (
+              <SkeletonCard key={index} />
+            ))}
+          </div>
+        ) : recentlyPlayed.length > 0 ? (
+          <div
+            className="hide-scrollbar flex gap-4 overflow-x-auto pb-2"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            {recentlyPlayed.map((track, index) => (
+              <div
+                key={`${track.trackId || track.youtubeId || track._id}-${index}`}
+                className="transition-transform hover:scale-[1.03]"
+                style={{ transitionDuration: '150ms' }}
+              >
+                <TrackCard
+                  track={track}
+                  onPlay={(selectedTrack) => handlePlay(selectedTrack, recentlyPlayed)}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Your listening history will show up here once you start playing tracks.
+          </p>
+        )}
       </section>
 
       <section className="mb-10">
@@ -184,22 +291,32 @@ export default function Dashboard() {
           className="mb-4 text-lg font-semibold"
           style={{ color: 'var(--text-primary)' }}
         >
-          Trending Now
+          Recommended For You
         </h3>
-        <div
-          className="hide-scrollbar flex gap-4 overflow-x-auto pb-2"
-          style={{ WebkitOverflowScrolling: 'touch' }}
-        >
-          {trending.map((track) => (
-            <div
-              key={track.id}
-              className="transition-transform hover:scale-[1.03]"
-              style={{ transitionDuration: '150ms' }}
-            >
-              <TrackCard track={track} play={handlePlay} />
-            </div>
-          ))}
-        </div>
+        {loadingRecommended ? (
+          <div className="hide-scrollbar flex gap-4 overflow-x-auto pb-2">
+            {[...Array(6)].map((_, index) => (
+              <SkeletonCard key={index} />
+            ))}
+          </div>
+        ) : recommended.length > 0 ? (
+          <div
+            className="hide-scrollbar flex gap-4 overflow-x-auto pb-2"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            {recommended.map((track) => (
+              <TrackCard
+                key={track.youtubeId}
+                track={track}
+                onPlay={(selectedTrack) => handlePlay(selectedTrack, recommended)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Pick a few favorite artists during onboarding to personalize this feed.
+          </p>
+        )}
       </section>
 
       <section>
@@ -210,8 +327,12 @@ export default function Dashboard() {
           Quick Picks
         </h3>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {quickPicks.map((track) => (
-            <QuickPickRow key={track.id} track={track} play={handlePlay} />
+          {recommended.slice(0, 6).map((track) => (
+            <QuickPickRow
+              key={track.youtubeId}
+              track={track}
+              onPlay={(selectedTrack) => handlePlay(selectedTrack, recommended)}
+            />
           ))}
         </div>
       </section>

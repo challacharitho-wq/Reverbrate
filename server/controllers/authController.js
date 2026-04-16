@@ -48,13 +48,7 @@ export async function register(req, res) {
 
     res.status(201).json({
       token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        subscription: user.subscription,
-      },
+      user: userResponse(user),
     })
   } catch (err) {
     console.error('[auth] register error:', err)
@@ -104,5 +98,93 @@ export async function getMe(req, res) {
     return res.status(200).json({ user: userResponse(user) })
   } catch {
     return res.status(500).json({ message: 'Failed to load profile' })
+  }
+}
+
+export async function toggleLike(req, res) {
+  try {
+    const { youtubeId, title, artist, thumbnail } = req.body
+
+    if (!youtubeId) {
+      return res.status(400).json({ message: 'youtubeId is required' })
+    }
+
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    const existingIndex = user.likedSongs.findIndex(
+      (song) => song.youtubeId === String(youtubeId).trim(),
+    )
+
+    if (existingIndex >= 0) {
+      user.likedSongs.splice(existingIndex, 1)
+      await user.save()
+      return res.status(200).json({ liked: false, songs: user.likedSongs })
+    }
+
+    user.likedSongs.push({
+      youtubeId: String(youtubeId).trim(),
+      title: String(title || '').trim(),
+      artist: String(artist || '').trim(),
+      thumbnail: String(thumbnail || '').trim(),
+      likedAt: new Date(),
+    })
+
+    await user.save()
+    return res.status(200).json({ liked: true, songs: user.likedSongs })
+  } catch (err) {
+    console.error('[auth] toggleLike error:', err)
+    return res.status(500).json({ message: 'Failed to update liked songs' })
+  }
+}
+
+export async function getLikedSongs(req, res) {
+  try {
+    const user = await User.findById(req.user.id).select('likedSongs')
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    return res.status(200).json({ songs: user.likedSongs || [] })
+  } catch (err) {
+    console.error('[auth] getLikedSongs error:', err)
+    return res.status(500).json({ message: 'Failed to load liked songs' })
+  }
+}
+
+export async function savePreferences(req, res) {
+  try {
+    const artists = Array.isArray(req.body.artists)
+      ? req.body.artists
+          .map((artist) => String(artist || '').trim())
+          .filter(Boolean)
+      : []
+
+    const uniqueArtists = [...new Set(artists)]
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        preferredArtists: uniqueArtists,
+        onboardingDone: true,
+      },
+      {
+        new: true,
+      },
+    ).select('-password')
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: userResponse(user),
+    })
+  } catch (err) {
+    console.error('[auth] savePreferences error:', err)
+    return res.status(500).json({ message: 'Failed to save preferences' })
   }
 }

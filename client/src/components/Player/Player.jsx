@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useYouTubePlayer from '../../hooks/useYouTubePlayer'
 import {
   ChevronUp,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import usePlayerStore from '../../store/usePlayerStore.js'
 import NowPlayingPanel from './NowPlayingPanel.jsx'
+import QueuePanel from './QueuePanel.jsx'
 
 function formatClock(totalSeconds) {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '0:00'
@@ -50,8 +51,10 @@ export default function Player() {
   const cycleRepeat = usePlayerStore((s) => s.cycleRepeat)
   const playNext = usePlayerStore((s) => s.playNext)
   const playPrev = usePlayerStore((s) => s.playPrev)
+  const setVolume = usePlayerStore((s) => s.setVolume)
 
   const [panelOpen, setPanelOpen] = useState(false)
+  const [queueOpen, setQueueOpen] = useState(false)
   const progressRef = useRef(null)
 
   const progress = duration ? currentTime / duration : 0
@@ -96,9 +99,9 @@ export default function Player() {
 
   // 🔊 VOLUME
   const handleVolume = (value) => {
-  setVolume(value)
-  setYTVolume(value * 100)
-}
+    setVolume(value)
+    setYTVolume(value * 100)
+  }
 
   return (
     <>
@@ -107,6 +110,10 @@ export default function Player() {
         onClose={() => setPanelOpen(false)}
         track={richTrack || currentTrack}
         isEnriching={isEnriching}
+      />
+      <QueuePanel
+        open={queueOpen}
+        onClose={() => setQueueOpen(false)}
       />
 
       <footer
@@ -232,7 +239,17 @@ export default function Player() {
               onChange={(e) => handleVolume(e.target.value / 100)}
             />
 
-            <ListMusic />
+            <button
+              type="button"
+              onClick={() => setQueueOpen((open) => !open)}
+              className="transition"
+              style={{
+                color: queueOpen ? 'var(--accent-light)' : 'var(--text-secondary)',
+              }}
+              aria-label="Open queue"
+            >
+              <ListMusic />
+            </button>
             <Maximize2 />
           </div>
         </div>

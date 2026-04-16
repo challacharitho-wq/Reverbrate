@@ -114,21 +114,23 @@ export const getArtistInfo = async (artist) => {
       }
     })
 
-    const data = res.data?.artist
-    if (!data) return null
+    const data = res.data
+    if (!data?.artist) return null
 
     return {
-      bio: stripHtml(data.bio?.summary),
+      bio: stripHtml(data.artist.bio?.summary),
       image:
-        data.image?.[data.image.length - 1]?.['#text'] || null,
-      listeners: data.stats?.listeners || null,
-      playcount: data.stats?.playcount || null,
-      tags: data.tags?.tag?.map((t) => t.name) || [],
+        data.artist.image?.[data.artist.image.length - 1]?.['#text'] || null,
+      listeners: data.artist.stats?.listeners || null,
+      playcount: data.artist.stats?.playcount || null,
+      tags: data.artist.tags?.tag?.map((t) => t.name) || [],
       similar:
-        data.similar?.artist?.map((a) => ({
+        data.artist?.similar?.artist
+          ?.slice(0, 6)
+          ?.map((a) => ({
           name: a.name,
           image:
-            a.image?.[a.image.length - 1]?.['#text'] || null
+            a.image?.find((img) => img.size === 'medium')?.['#text'] || ''
         })) || []
     }
   } catch (err) {

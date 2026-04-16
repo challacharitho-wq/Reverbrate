@@ -15,7 +15,7 @@ export async function searchSongs(req, res) {
     return res.status(400).json({ message: 'Missing search query' })
   }
   try {
-    const results = await youtubeHelper.searchVideos(query, 15)
+    const results = await youtubeHelper.searchVideos(query, 20)
     res.status(200).json({ results })
   } catch (err) {
     console.error('[songController] searchSongs failed', err)

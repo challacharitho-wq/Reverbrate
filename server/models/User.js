@@ -27,6 +27,44 @@ const userSchema = new mongoose.Schema(
       enum: ['free', 'premium'],
       default: 'free',
     },
+    likedSongs: [
+      {
+        youtubeId: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        title: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        artist: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        thumbnail: {
+          type: String,
+          default: '',
+          trim: true,
+        },
+        likedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+    preferredArtists: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    onboardingDone: {
+      type: Boolean,
+      default: false,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

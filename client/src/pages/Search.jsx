@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
-  Clock, Music, Play, Search as SearchIcon,
+  Clock, Music, Search as SearchIcon,
   ListPlus, X, Check, Plus
 } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue.js'
@@ -189,15 +190,22 @@ function AddToPlaylistModal({ track, onClose }) {
 
 // ── Main Search Page ───────────────────────────────────
 export default function Search() {
-  const [query, setQuery]           = useState('')
+  const [searchParams]              = useSearchParams()
+  const urlQuery                    = searchParams.get('q') || ''
+  const [query, setQuery]           = useState(urlQuery)
   const [results, setResults]       = useState([])
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState(null)
   const [modalTrack, setModalTrack] = useState(null)
 
   const debouncedQuery  = useDebouncedValue(query, 600)
+  const setQueue        = usePlayerStore((s) => s.setQueue)
   const playYouTubeTrack = usePlayerStore((s) => s.playYouTubeTrack)
   const currentTrack    = usePlayerStore((s) => s.currentTrack)
+
+  useEffect(() => {
+    setQuery(urlQuery)
+  }, [urlQuery])
 
   useEffect(() => {
     const loadResults = async () => {
@@ -221,6 +229,11 @@ export default function Search() {
     }
     loadResults()
   }, [debouncedQuery])
+
+  const handlePlayTrack = (track, index) => {
+    setQueue(results, index)
+    playYouTubeTrack(track)
+  }
 
   return (
     <>
@@ -283,7 +296,10 @@ export default function Search() {
               </div>
 
             ) : results.length > 0 ? (
-              <div className="grid gap-2">
+              <div className="grid gap-2 overflow-y-visible">
+                <p className="px-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Showing {results.length} results for '{debouncedQuery}'
+                </p>
                 {/* Header row */}
                 <div className="grid items-center gap-4 px-4 py-3
                                 text-sm font-semibold text-zinc-400
@@ -320,7 +336,7 @@ export default function Search() {
                         gridTemplateColumns:
                           '2rem 1fr 1fr auto auto'
                       }}
-                      onClick={() => playYouTubeTrack(track)}
+                      onClick={() => handlePlayTrack(track, index)}
                     >
                       {/* Index / play indicator */}
                       <span className="flex h-8 w-8 items-center

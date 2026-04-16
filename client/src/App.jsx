@@ -17,11 +17,13 @@ import Playlist from './pages/Playlist'
 import Artist from './pages/Artist'
 import History from './pages/History'
 import Upload from './pages/Upload'
+import Onboarding from './pages/Onboarding.jsx'
 
 // ─── Loading / Redirect for "/" ───────────────────────
 function HomeRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const isLoading = useAuthStore((s) => s.isLoading)
+  const user = useAuthStore((s) => s.user)
 
   if (isLoading) {
     return (
@@ -42,7 +44,9 @@ function HomeRedirect() {
     )
   }
 
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />
+  return isAuthenticated
+    ? <Navigate to={user?.onboardingDone ? '/dashboard' : '/onboarding'} replace />
+    : <Landing />
 }
 
 // ─── Global audio hooks mounted once at root ──────────
@@ -70,6 +74,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
 
         <Route element={<ProtectedRoute />}>
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/search" element={<Search />} />

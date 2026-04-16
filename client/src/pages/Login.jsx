@@ -15,6 +15,7 @@ export default function Login() {
   const navigate = useNavigate()
   const isLoading = useAuthStore((s) => s.isLoading)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const user = useAuthStore((s) => s.user)
   const error = useAuthStore((s) => s.error)
   const login = useAuthStore((s) => s.login)
   const clearError = useAuthStore((s) => s.clearError)
@@ -26,17 +27,17 @@ export default function Login() {
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate('/dashboard', { replace: true })
+      navigate(user?.onboardingDone ? '/dashboard' : '/onboarding', { replace: true })
     }
-  }, [isLoading, isAuthenticated, navigate])
+  }, [isLoading, isAuthenticated, navigate, user])
 
   async function handleSubmit(e) {
     e.preventDefault()
     clearError()
     setPending(true)
     try {
-      await login(email, password)
-      navigate('/dashboard', { replace: true })
+      const data = await login(email, password)
+      navigate(data?.user?.onboardingDone ? '/dashboard' : '/onboarding', { replace: true })
     } catch {
       // Error surfaced via store
     } finally {

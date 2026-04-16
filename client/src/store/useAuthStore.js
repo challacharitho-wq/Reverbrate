@@ -12,6 +12,11 @@ export const useAuthStore = create((set) => ({
   error: null,
 
   clearError: () => set({ error: null }),
+  setUser: (user) =>
+    set({
+      user,
+      isAuthenticated: Boolean(user),
+    }),
 
   logout: () => {
     localStorage.removeItem(AUTH_TOKEN_KEY)
@@ -48,6 +53,7 @@ export const useAuthStore = create((set) => ({
       const { data } = await api.get('/auth/me')
       set({
         user: data.user,
+        token: stored,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -79,6 +85,7 @@ export const useAuthStore = create((set) => ({
         isAuthenticated: true,
         error: null,
       })
+      return data
     } catch (err) {
       const message =
         err.response?.data?.message || 'Registration failed'
@@ -101,6 +108,7 @@ export const useAuthStore = create((set) => ({
         isAuthenticated: true,
         error: null,
       })
+      return data
     } catch (err) {
       const message =
         err.response?.data?.message || 'Login failed'

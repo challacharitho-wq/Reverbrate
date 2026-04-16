@@ -1,10 +1,10 @@
-import axios from 'axios';
-// ADD this line after the imports, before anything else
+import axios from 'axios'
+
 export const AUTH_TOKEN_KEY = 'reverberate_token'
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ||
            'http://localhost:5000/api',
-});
+})
 
 // Attach token to every request
 API.interceptors.request.use((req) => {
@@ -32,14 +32,21 @@ API.interceptors.response.use(
 
 // ─── Auth ────────────────────────────────────────────
 export const authAPI = {
-  register : (data) => API.post('/auth/register', data),
-  login    : (data) => API.post('/auth/login', data),
-  getMe    : ()     => API.get('/auth/me'),
-};
+  register: (data) => API.post('/auth/register', data),
+  login: (data) => API.post('/auth/login', data),
+  getMe: () => API.get('/auth/me'),
+  savePreferences: (data) =>
+  API.post('/auth/preferences', data),
+}
+
+export const likeAPI = {
+  toggleLike: (track) => API.post('/auth/like', track),
+  getLikes: () => API.get('/auth/likes'),
+}
 
 // ─── Music / Songs ───────────────────────────────────
 export const musicAPI = {
-  search       : (query) =>
+  search: (query) =>
     API.get(`/songs/search?query=${encodeURIComponent(query)}`),
 
   getTrackDetails: (youtubeId, title, artist, thumbnail) =>
@@ -47,15 +54,15 @@ export const musicAPI = {
       params: { youtubeId, title, artist, thumbnail }
     }),
 
-  uploadTrack  : (formData) =>
+  uploadTrack: (formData) =>
     API.post('/songs/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
 
-  getMyUploads : () => API.get('/songs/my-uploads'),
+  getMyUploads: () => API.get('/songs/my-uploads'),
 
   deleteUpload : (id) => API.delete(`/songs/${id}`),
-};
+}
 
 // ─── History ─────────────────────────────────────────
 export const historyService = {
@@ -65,12 +72,12 @@ export const historyService = {
     }),
   get   : () => API.get('/history'),
   clear : () => API.delete('/history'),
-};
+}
 
 // ─── Recommendations ─────────────────────────────────
 export const recommendService = {
   get: () => API.get('/recommendations'),
-};
+}
 
 // ─── Artists ─────────────────────────────────────────
 export const artistService = {
@@ -85,7 +92,7 @@ export const artistService = {
 
   checkFollowing : (artistName) =>
     API.get('/artists/check', { params: { artistName } }),
-};
+}
 
 // ─── Playlists ─────────────────────────────────────────
 export const playlistAPI = {
@@ -97,11 +104,11 @@ export const playlistAPI = {
     API.delete(`/playlists/${id}/tracks`, {
       params: { youtubeId },
     }),
-};
+}
 
 // Alias for backward compatibility
 export const songService = musicAPI;
 
-export const api = API;
+export const api = API
 
-export default API;
+export default API

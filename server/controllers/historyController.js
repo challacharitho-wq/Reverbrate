@@ -1,7 +1,64 @@
-const notImplemented = (_req, res) => {
-  res.status(501).json({ message: 'Not implemented' })
+import History from '../models/History.js'
+
+export async function getHistory(req, res) {
+  try {
+    const history = await History.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(50)
+
+    return res.status(200).json({ history })
+  } catch (err) {
+    console.error('[history] getHistory failed', err)
+    return res.status(500).json({ message: 'Failed to load history' })
+  }
 }
 
-export const getHistory = notImplemented
-export const addHistory = notImplemented
-export const clearHistory = notImplemented
+export async function addHistory(req, res) {
+  try {
+    const {
+      trackId,
+      sourceType,
+      title,
+      artist,
+      thumbnail,
+    } = req.body
+
+    console.log('[history] Adding:', {
+      userId: req.user.id,
+      trackId,
+      sourceType,
+      title,
+    })
+
+    if (!trackId || !sourceType || !title) {
+      return res.status(400).json({
+        message: 'trackId, sourceType, and title are required',
+      })
+    }
+
+    const entry = await History.create({
+      userId: req.user.id,
+      trackId: String(trackId).trim(),
+      sourceType: String(sourceType).trim(),
+      title: String(title).trim(),
+      artist: String(artist || '').trim(),
+      thumbnail: String(thumbnail || '').trim(),
+      playedAt: new Date(),
+    })
+
+    return res.status(201).json({ success: true, history: entry })
+  } catch (err) {
+    console.error('[history] addHistory failed', err)
+    return res.status(500).json({ message: 'Failed to add history' })
+  }
+}
+
+export async function clearHistory(req, res) {
+  try {
+    await History.deleteMany({ userId: req.user.id })
+    return res.status(200).json({ success: true })
+  } catch (err) {
+    console.error('[history] clearHistory failed', err)
+    return res.status(500).json({ message: 'Failed to clear history' })
+  }
+}

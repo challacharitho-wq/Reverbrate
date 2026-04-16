@@ -83,8 +83,17 @@ const usePlayerStore = create((set, get) => ({
   },
 
   // ─── Queue Navigation ─────────────────────────────────
-  setQueue: (tracks, startIndex = 0) =>
-    set({ queue: tracks, queueIndex: startIndex }),
+  setQueue: (tracks, startIndex = 0) => {
+    const safeQueue = Array.isArray(tracks) ? tracks : []
+    const safeIndex = safeQueue.length
+      ? Math.min(Math.max(0, startIndex), safeQueue.length - 1)
+      : 0
+
+    set({
+      queue: safeQueue,
+      queueIndex: safeIndex,
+    })
+  },
 
   playNext: () => {
     const { queue, queueIndex, repeatMode, isShuffle } = get()
@@ -103,16 +112,7 @@ const usePlayerStore = create((set, get) => ({
     const track = queue[next]
     if (!track) return
 
-    set({
-      queueIndex  : next,
-      currentTrack: track,
-      isPlaying   : true,
-      progress    : 0,
-      currentTime : 0,
-      duration    :
-        (track.durationSeconds ??
-          parseDurationString(track.duration)) || 180,
-    })
+    set({ queueIndex: next })
 
     // Auto-route source type
     if (track.sourceType === 'upload' || track.fileUrl) {
@@ -130,16 +130,7 @@ const usePlayerStore = create((set, get) => ({
     const track = queue[prev]
     if (!track) return
 
-    set({
-      queueIndex  : prev,
-      currentTrack: track,
-      isPlaying   : true,
-      progress    : 0,
-      currentTime : 0,
-      duration    :
-        (track.durationSeconds ??
-          parseDurationString(track.duration)) || 180,
-    })
+    set({ queueIndex: prev })
 
     if (track.sourceType === 'upload' || track.fileUrl) {
       get().playUploadedTrack(track)
@@ -150,7 +141,11 @@ const usePlayerStore = create((set, get) => ({
 
   // ─── YouTube Track ────────────────────────────────────
   playYouTubeTrack: async (track) => {
-    const { play } = get()
+    const { play, queue, queueIndex } = get()
+    const trackId = track.youtubeId || track.id
+    const foundIndex = queue.findIndex(
+      (item) => (item.youtubeId || item.trackId || item.id || item._id) === trackId,
+    )
 
     // Start playback immediately — don't wait for enrichment
     play(track)
@@ -159,6 +154,7 @@ const usePlayerStore = create((set, get) => ({
       sourceType : 'youtube',
       isEnriching: true,
       richTrack  : null,
+      queueIndex : foundIndex >= 0 ? foundIndex : queueIndex,
     })
 
     // Fire-and-forget history
@@ -170,7 +166,8 @@ const usePlayerStore = create((set, get) => ({
         track.artist,
         track.thumbnail || ''
       )
-      .catch(() => {})
+      .then(() => console.log('[history] saved'))
+      .catch((e) => console.error('[history] failed', e))
 
     // Enrich with metadata in background
     try {
@@ -199,6 +196,11 @@ const usePlayerStore = create((set, get) => ({
 
   // ─── Uploaded Track ───────────────────────────────────
   playUploadedTrack: (track) => {
+    const { queue, queueIndex } = get()
+    const trackId = track._id || track.id
+    const foundIndex = queue.findIndex(
+      (item) => (item._id || item.id || item.trackId || item.youtubeId) === trackId,
+    )
     const durationSeconds =
       track.durationSeconds ??
       parseDurationString(track.duration)
@@ -212,6 +214,7 @@ const usePlayerStore = create((set, get) => ({
       duration     : durationSeconds > 0 ? durationSeconds : 180,
       richTrack    : null,
       youtubeId    : null,
+      queueIndex   : foundIndex >= 0 ? foundIndex : queueIndex,
     })
 
     // Fire-and-forget history
@@ -221,9 +224,10 @@ const usePlayerStore = create((set, get) => ({
         'upload',
         track.title,
         track.artist,
-        track.coverUrl || ''
+        track.thumbnail || track.coverUrl || ''
       )
-      .catch(() => {})
+      .then(() => console.log('[history] saved'))
+      .catch((e) => console.error('[history] failed', e))
   },
 }))
 

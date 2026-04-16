@@ -30,13 +30,11 @@ body {
   min-height: 100vh;
   background: var(--bg-primary);
   color: var(--text-primary);
-  overflow: hidden;
+  overflow-y: auto; /* ✅ allow scroll */
 }
 
 #root {
   min-height: 100vh;
-  height: 100vh;
-  overflow: hidden;
 }
 
 .font-heading {
