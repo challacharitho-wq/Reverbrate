@@ -1,43 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Bell,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ListMusic,
   LogOut,
-  Search,
-  Settings,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search as SearchIcon,
   User,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore.js'
 
 function getInitials(name, email) {
-  const n = (name || '').trim()
-  if (n) {
-    const parts = n.split(/\s+/).filter(Boolean)
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase()
-    }
-    return n.slice(0, 2).toUpperCase()
+  const value = (name || email || 'R').trim()
+  const parts = value.split(/\s+/).filter(Boolean)
+  if (parts.length > 1) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
   }
-  const e = (email || '').trim()
-  if (e.length >= 2) {
-    return e.slice(0, 2).toUpperCase()
-  }
-  return '?'
+  return value.slice(0, 2).toUpperCase()
 }
 
-export default function Topbar({ title }) {
+export default function Topbar({
+  title,
+  subtitle,
+  showLeftSidebar,
+  leftSidebarCollapsed,
+  onToggleLeftSidebar,
+  onToggleLeftSidebarCollapse,
+  showArtistPanel,
+  onToggleArtistPanel,
+}) {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
-
-  const [q, setQ] = useState('')
+  const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const inputRef = useRef(null)
   const menuRef = useRef(null)
-
-  const displayName = user?.name || 'Listener'
-  const email = user?.email || ''
-  const avatarUrl = user?.avatar || ''
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -45,15 +47,14 @@ export default function Topbar({ title }) {
         setMenuOpen(false)
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   function submitSearch() {
-    const nextQuery = q.trim()
-    if (!nextQuery) return
-    navigate(`/search?q=${encodeURIComponent(nextQuery)}`)
-    setQ('')
+    const next = query.trim()
+    navigate(next ? `/search?q=${encodeURIComponent(next)}` : '/search')
   }
 
   function handleLogout() {
@@ -64,204 +65,224 @@ export default function Topbar({ title }) {
 
   return (
     <header
-      className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-6 px-6"
+      className="sticky top-0 z-20 border-b px-6 pb-4 pt-5"
       style={{
-        background: 'color-mix(in srgb, var(--bg-primary) 88%, transparent)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid var(--border)',
+        background: 'linear-gradient(180deg, rgba(15,15,15,0.96), rgba(15,15,15,0.86))',
+        borderColor: 'var(--border)',
+        backdropFilter: 'blur(18px)',
       }}
     >
-      <h1
-        className="min-w-0 shrink-0 text-xl font-semibold tracking-tight"
-        style={{ color: 'var(--text-primary)' }}
-      >
-        {title}
-      </h1>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          submitSearch()
-        }}
-        className="mx-auto flex max-w-xl flex-1 justify-center"
-      >
-        <div
-          className="relative flex w-full max-w-md items-center rounded-full border px-3 transition"
-          style={{
-            background: 'var(--bg-card)',
-            borderColor: 'var(--border)',
-            transitionDuration: '150ms',
-          }}
-        >
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={submitSearch}
-            className="flex h-8 w-8 items-center justify-center rounded-full transition"
-            style={{ color: 'var(--text-muted)' }}
-            aria-label="Search"
+            onClick={() => navigate(-1)}
+            className="glass-button h-11 w-11"
+            aria-label="Go back"
           >
-            <Search className="h-4 w-4 shrink-0" aria-hidden />
+            <ChevronLeft className="h-5 w-5" />
           </button>
-          <input
-            type="search"
-            name="q"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && q.trim()) {
-                e.preventDefault()
-                submitSearch()
-              }
-            }}
-            placeholder="Search songs, artists, albums..."
-            className="topbar-search-input w-full border-0 bg-transparent py-2.5 pl-2 pr-3 text-sm"
-            style={{ color: 'var(--text-primary)' }}
-            aria-label="Search"
-          />
-        </div>
-      </form>
-
-      <div className="ml-auto flex shrink-0 items-center gap-3">
-        <button
-          type="button"
-          className="rounded-full p-2 transition"
-          style={{
-            color: 'var(--text-muted)',
-            transitionDuration: '150ms',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--text-primary)'
-            e.currentTarget.style.background = 'var(--bg-hover)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--text-muted)'
-            e.currentTarget.style.background = 'transparent'
-          }}
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-        </button>
-
-        <div className="relative" ref={menuRef}>
           <button
             type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center gap-1 rounded-full p-0.5 transition"
-            style={{ transitionDuration: '150ms' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--bg-hover)'
+            onClick={() => navigate(1)}
+            className="glass-button h-11 w-11"
+            aria-label="Go forward"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleLeftSidebar}
+            className="glass-button h-11 w-11"
+            style={{
+              background: showLeftSidebar ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.55)',
+              color: showLeftSidebar ? 'var(--text-primary)' : 'var(--text-secondary)',
             }}
-            onMouseLeave={(e) => {
-              if (!menuOpen) {
-                e.currentTarget.style.background = 'transparent'
+            aria-label={showLeftSidebar ? 'Hide sidebar' : 'Show sidebar'}
+            title={showLeftSidebar ? 'Hide sidebar' : 'Show sidebar'}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleLeftSidebarCollapse}
+            className="glass-button h-11 w-11"
+            style={{
+              background: showLeftSidebar ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.55)',
+              color: showLeftSidebar ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+            aria-label={leftSidebarCollapsed ? 'Expand sidebar' : 'Compress sidebar'}
+            title={leftSidebarCollapsed ? 'Expand sidebar' : 'Compress sidebar'}
+          >
+            {leftSidebarCollapsed ? (
+              <PanelLeftOpen className="h-5 w-5" />
+            ) : (
+              <PanelLeftClose className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            submitSearch()
+          }}
+          className="mx-auto flex w-full max-w-xl items-center"
+        >
+          <div
+            className="flex w-full items-center gap-3 rounded-full border px-4 py-3"
+            style={{
+              background: 'var(--bg-card)',
+              borderColor: 'var(--border)',
+            }}
+            onClick={() => inputRef.current?.focus()}
+          >
+            <SearchIcon className="h-4 w-4 shrink-0" style={{ color: 'var(--text-secondary)' }} />
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="topbar-search-input w-full border-0 bg-transparent text-sm"
+              style={{ color: 'var(--text-primary)' }}
+              placeholder="What do you want to play?"
+              aria-label="Search"
+            />
+          </div>
+        </form>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleArtistPanel}
+            title="Artist Focus"
+            className="flex h-9 w-9 items-center justify-center rounded-full transition"
+            style={{
+              background: showArtistPanel ? 'var(--accent)' : 'rgba(0,0,0,0.7)',
+              color: showArtistPanel ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+            onMouseEnter={(event) => {
+              if (!showArtistPanel) {
+                event.currentTarget.style.background = 'var(--bg-highlight)'
+                event.currentTarget.style.color = 'var(--text-primary)'
               }
             }}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            aria-label="Account menu"
+            onMouseLeave={(event) => {
+              if (!showArtistPanel) {
+                event.currentTarget.style.background = 'rgba(0,0,0,0.7)'
+                event.currentTarget.style.color = 'var(--text-secondary)'
+              }
+            }}
+            aria-label="Artist Focus"
           >
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt=""
-                className="h-9 w-9 rounded-full object-cover"
-              />
-            ) : (
+            <ListMusic className="h-4 w-4" />
+          </button>
+
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="flex h-9 items-center gap-1 rounded-full pl-1 pr-2 transition"
+              style={{
+                background: 'rgba(0,0,0,0.7)',
+                color: 'var(--text-primary)',
+              }}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Account menu"
+            >
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || 'User'}
+                  className="h-9 w-9 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: 'var(--accent)' }}
+                >
+                  {getInitials(user?.name, user?.email)}
+                </div>
+              )}
+              <ChevronDown className="h-3.5 w-3.5" style={{ color: 'var(--text-secondary)' }} />
+            </button>
+
+            {menuOpen ? (
               <div
-                className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold"
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-2 min-w-[180px] overflow-hidden rounded-2xl border py-1"
                 style={{
                   background: 'var(--bg-card)',
-                  color: 'var(--accent-light)',
+                  borderColor: 'var(--border)',
+                  boxShadow: '0 16px 32px rgba(0, 0, 0, 0.32)',
                 }}
               >
-                {getInitials(displayName, email)}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition"
+                  style={{ color: 'var(--text-secondary)' }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.background = 'var(--bg-elevated)'
+                    event.currentTarget.style.color = 'var(--text-primary)'
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.background = 'transparent'
+                    event.currentTarget.style.color = 'var(--text-secondary)'
+                  }}
+                >
+                  <User className="h-4 w-4" />
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition"
+                  style={{ color: 'var(--text-secondary)' }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.background = 'var(--bg-elevated)'
+                    event.currentTarget.style.color = 'rgb(239, 68, 68)'
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.background = 'transparent'
+                    event.currentTarget.style.color = 'var(--text-secondary)'
+                  }}
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
               </div>
-            )}
-            <ChevronDown
-              className="h-4 w-4 pr-1"
-              style={{ color: 'var(--text-muted)' }}
-              aria-hidden
-            />
-          </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
-          {menuOpen ? (
-            <div
-              role="menu"
-              className="absolute right-0 top-full z-50 mt-2 min-w-[200px] overflow-hidden rounded-xl border py-1 shadow-lg"
-              style={{
-                background: 'var(--bg-card)',
-                borderColor: 'var(--border)',
-              }}
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition"
-                style={{
-                  color: 'var(--text-secondary)',
-                  transitionDuration: '150ms',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-hover)'
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-secondary)'
-                }}
-                onClick={() => setMenuOpen(false)}
-              >
-                <User className="h-4 w-4" aria-hidden />
-                Profile
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition"
-                style={{
-                  color: 'var(--text-secondary)',
-                  transitionDuration: '150ms',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-hover)'
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-secondary)'
-                }}
-                onClick={() => setMenuOpen(false)}
-              >
-                <Settings className="h-4 w-4" aria-hidden />
-                Settings
-              </button>
-              <div
-                className="my-1 h-px"
-                style={{ background: 'var(--border)' }}
-              />
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition"
-                style={{
-                  color: 'var(--text-muted)',
-                  transitionDuration: '150ms',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--logout-hover)'
-                  e.currentTarget.style.background = 'var(--bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--text-muted)'
-                  e.currentTarget.style.background = 'transparent'
-                }}
-                onClick={handleLogout}
-              >
-                <LogOut className="h-4 w-4" aria-hidden />
-                Logout
-              </button>
-            </div>
-          ) : null}
+      <div className="mt-5 flex items-end justify-between gap-6">
+        <div className="min-w-0">
+          <h1 className="truncate text-[2rem] font-extrabold tracking-tight text-white">
+            {title}
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {subtitle}
+          </p>
+        </div>
+
+        <div
+          className="hidden rounded-2xl px-4 py-3 text-right lg:block"
+          style={{
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(255,255,255,0.03))',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: 'var(--text-muted)' }}>
+            Workspace
+          </p>
+          <p className="mt-1 text-sm font-semibold text-white">
+            Sidebars can be hidden or compressed
+          </p>
         </div>
       </div>
     </header>

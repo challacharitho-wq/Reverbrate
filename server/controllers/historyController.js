@@ -36,9 +36,21 @@ export async function addHistory(req, res) {
       })
     }
 
+    const normalizedTrackId = String(trackId).trim()
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000)
+    const existing = await History.findOne({
+      userId: req.user.id,
+      trackId: normalizedTrackId,
+      playedAt: { $gte: threeMinutesAgo },
+    })
+
+    if (existing) {
+      return res.status(200).json(existing)
+    }
+
     const entry = await History.create({
       userId: req.user.id,
-      trackId: String(trackId).trim(),
+      trackId: normalizedTrackId,
       sourceType: String(sourceType).trim(),
       title: String(title).trim(),
       artist: String(artist || '').trim(),

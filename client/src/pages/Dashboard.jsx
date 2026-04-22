@@ -1,151 +1,70 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Play } from 'lucide-react'
+import { Play, Sparkles, TrendingUp } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore.js'
 import usePlayerStore from '../store/usePlayerStore.js'
 import { historyService, recommendService } from '../services/api.js'
 
 function getGreetingPeriod() {
-  const h = new Date().getHours()
-  if (h >= 5 && h < 12) {
-    return 'morning'
-  }
-  if (h >= 12 && h < 17) {
-    return 'afternoon'
-  }
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) return 'morning'
+  if (hour >= 12 && hour < 17) return 'afternoon'
   return 'evening'
 }
 
-function TrackCard({ track, onPlay }) {
+function PlayCard({ track, onPlay, compact = false }) {
   const artwork = track.thumbnail || track.albumArt || ''
 
   return (
-    <div
-      className="group relative w-[160px] shrink-0 cursor-pointer transition-transform"
-      style={{ transitionDuration: '150ms' }}
+    <button
+      type="button"
       onClick={() => onPlay(track)}
+      className={`group text-left transition ${compact ? 'w-full' : 'w-full min-w-[190px]'}`}
     >
       <div
-        className="relative h-[160px] w-[160px] overflow-hidden rounded-xl"
+        className={`rounded-[18px] p-3 transition ${compact ? 'flex items-center gap-4' : ''}`}
         style={{
-          background: artwork
-            ? 'var(--bg-card)'
-            : 'linear-gradient(135deg, var(--accent-glow), var(--bg-card))',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))',
+          border: '1px solid rgba(255,255,255,0.05)',
         }}
       >
-        {artwork ? (
-          <img
-            src={artwork}
-            alt={track.title}
-            className="h-full w-full object-cover"
-          />
-        ) : null}
-        <button
-          type="button"
-          className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+        <div
+          className={`relative overflow-hidden rounded-[14px] ${compact ? 'h-14 w-14 shrink-0' : 'aspect-square w-full'}`}
           style={{
-            background: 'color-mix(in srgb, var(--bg-primary) 35%, transparent)',
-            transitionDuration: '150ms',
+            background: artwork ? 'var(--bg-card)' : 'linear-gradient(135deg, var(--accent), #2563eb)',
           }}
-          onClick={(e) => {
-            e.stopPropagation()
-            onPlay(track)
-          }}
-          aria-label={`Play ${track.title}`}
         >
+          {artwork ? (
+            <img src={artwork} alt={track.title} className="h-full w-full object-cover" />
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
           <span
-            className="flex h-11 w-11 items-center justify-center rounded-full shadow-lg"
-            style={{
-              background: 'var(--accent)',
-              color: 'var(--text-primary)',
-            }}
+            className="absolute bottom-3 right-3 flex h-11 w-11 translate-y-2 items-center justify-center rounded-full opacity-0 transition duration-200 group-hover:translate-y-0 group-hover:opacity-100"
+            style={{ background: '#1db954', color: '#000000' }}
           >
-            <Play className="ml-0.5 h-5 w-5" fill="currentColor" aria-hidden />
+            <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
           </span>
-        </button>
+        </div>
+
+        <div className={compact ? 'min-w-0 flex-1' : 'pt-4'}>
+          <p className="truncate text-sm font-semibold text-white">{track.title}</p>
+          <p className="mt-1 truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {track.artist || 'Unknown artist'}
+          </p>
+        </div>
       </div>
-      <p
-        className="mt-2 line-clamp-2 text-sm font-semibold leading-tight"
-        style={{ color: 'var(--text-primary)' }}
-      >
-        {track.title}
-      </p>
-      <p
-        className="mt-0.5 line-clamp-1 text-xs"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        {track.artist}
-      </p>
-    </div>
+    </button>
   )
 }
 
-function QuickPickRow({ track, onPlay }) {
+function SectionHeader({ title, action }) {
   return (
-    <div
-      className="group flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition-colors"
-      style={{ transitionDuration: '150ms' }}
-      onClick={() => onPlay(track)}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--bg-hover)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent'
-      }}
-    >
-      <div
-        className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg"
-        style={{
-          background: track.thumbnail
-            ? 'var(--bg-card)'
-            : 'linear-gradient(135deg, var(--accent-glow), var(--bg-card))',
-        }}
-      >
-        {track.thumbnail ? (
-          <img
-            src={track.thumbnail}
-            alt={track.title}
-            className="h-full w-full object-cover"
-          />
-        ) : null}
-        <button
-          type="button"
-          className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
-          style={{ transitionDuration: '150ms' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            onPlay(track)
-          }}
-          aria-label={`Play ${track.title}`}
-        >
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-full"
-            style={{ background: 'var(--accent)' }}
-          >
-            <Play
-              className="ml-0.5 h-4 w-4"
-              fill="var(--text-primary)"
-              aria-hidden
-            />
-          </span>
+    <div className="mb-4 flex items-center justify-between gap-4">
+      <h2 className="text-2xl font-bold tracking-tight text-white">{title}</h2>
+      {action ? (
+        <button type="button" className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+          {action}
         </button>
-      </div>
-      <div className="min-w-0 flex-1">
-        <p
-          className="truncate text-sm font-semibold"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {track.title}
-        </p>
-        <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
-          {track.artist}
-        </p>
-      </div>
-      <span
-        className="shrink-0 text-xs tabular-nums"
-        style={{ color: 'var(--text-secondary)' }}
-      >
-        {track.duration}
-      </span>
+      ) : null}
     </div>
   )
 }
@@ -155,6 +74,7 @@ export default function Dashboard() {
   const playYouTubeTrack = usePlayerStore((s) => s.playYouTubeTrack)
   const playUploadedTrack = usePlayerStore((s) => s.playUploadedTrack)
   const setQueue = usePlayerStore((s) => s.setQueue)
+
   const [recentlyPlayed, setRecentlyPlayed] = useState([])
   const [recommended, setRecommended] = useState([])
   const [loadingRecommended, setLoadingRecommended] = useState(true)
@@ -164,7 +84,7 @@ export default function Dashboard() {
   const firstName = (user?.name || 'there').split(/\s+/)[0]
 
   useEffect(() => {
-    const loadHomeData = async () => {
+    async function loadHomeData() {
       setLoadingHistory(true)
       setLoadingRecommended(true)
 
@@ -172,8 +92,8 @@ export default function Dashboard() {
         const historyResponse = await historyService.get()
         const historyItems = historyResponse.data?.history || historyResponse.data || []
         setRecentlyPlayed(historyItems)
-      } catch (err) {
-        console.error('[dashboard] history load failed', err)
+      } catch (error) {
+        console.error('[dashboard] history load failed', error)
         setRecentlyPlayed([])
       } finally {
         setLoadingHistory(false)
@@ -182,8 +102,8 @@ export default function Dashboard() {
       try {
         const recommendResponse = await recommendService.get()
         setRecommended(recommendResponse.data?.tracks || [])
-      } catch (err) {
-        console.error('[dashboard] recommendations load failed', err)
+      } catch (error) {
+        console.error('[dashboard] recommendations load failed', error)
         setRecommended([])
       } finally {
         setLoadingRecommended(false)
@@ -214,9 +134,7 @@ export default function Dashboard() {
     }))
 
     const currentId = normalizedTrack.youtubeId
-    const index = normalizedQueue.findIndex(
-      (item) => (item.youtubeId || item.id) === currentId,
-    )
+    const index = normalizedQueue.findIndex((item) => (item.youtubeId || item.id) === currentId)
 
     if (normalizedQueue.length > 0) {
       setQueue(normalizedQueue, index >= 0 ? index : 0)
@@ -225,87 +143,89 @@ export default function Dashboard() {
     playYouTubeTrack(normalizedTrack)
   }
 
-  function SkeletonCard() {
-    return (
-      <div
-        className="h-[220px] w-[160px] shrink-0 animate-pulse rounded-xl"
-        style={{ background: 'var(--bg-card)' }}
-      />
-    )
-  }
+  const quickMixes = recentlyPlayed.slice(0, 6)
+  const spotlightTracks = recommended.slice(0, 5)
 
   return (
-    <div className="max-w-6xl">
-      <section className="mb-10">
-        <h2
-          className="text-2xl font-semibold tracking-tight sm:text-3xl"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Good {greeting}, {firstName}!
-        </h2>
-        <p className="mt-1 text-base" style={{ color: 'var(--text-secondary)' }}>
-          What do you want to listen to?
+    <div className="space-y-8 pb-6">
+      <section
+        className="overflow-hidden rounded-[28px] px-8 py-8"
+        style={{
+          background: 'linear-gradient(180deg, rgba(124,58,237,0.55), rgba(15,15,15,0.95) 72%)',
+        }}
+      >
+        <p className="text-sm font-semibold uppercase tracking-[0.28em]" style={{ color: 'rgba(255,255,255,0.72)' }}>
+          Good {greeting}
         </p>
-      </section>
+        <h2 className="mt-4 max-w-3xl text-4xl font-extrabold tracking-tight text-white md:text-5xl">
+          Welcome back, {firstName}. Your listening room is ready.
+        </h2>
+        <p className="mt-4 max-w-2xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.75)' }}>
+          Jump into recent plays, discover a few recommendations, and keep the desktop player anchored while you browse.
+        </p>
 
-      <section className="mb-10">
-        <h3
-          className="mb-4 text-lg font-semibold"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Recently Played
-        </h3>
-        {loadingHistory ? (
-          <div className="hide-scrollbar flex gap-4 overflow-x-auto pb-2">
-            {[...Array(4)].map((_, index) => (
-              <SkeletonCard key={index} />
-            ))}
-          </div>
-        ) : recentlyPlayed.length > 0 ? (
-          <div
-            className="hide-scrollbar flex gap-4 overflow-x-auto pb-2"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {recentlyPlayed.map((track, index) => (
-              <div
-                key={`${track.trackId || track.youtubeId || track._id}-${index}`}
-                className="transition-transform hover:scale-[1.03]"
-                style={{ transitionDuration: '150ms' }}
+        <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {quickMixes.length > 0 ? (
+            quickMixes.map((track) => (
+              <button
+                key={track.trackId || track.youtubeId || track._id}
+                type="button"
+                onClick={() => handlePlay(track, recentlyPlayed)}
+                className="flex items-center overflow-hidden rounded-2xl text-left transition hover:scale-[1.01]"
+                style={{ background: 'rgba(255,255,255,0.10)' }}
               >
-                <TrackCard
-                  track={track}
-                  onPlay={(selectedTrack) => handlePlay(selectedTrack, recentlyPlayed)}
-                />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Your listening history will show up here once you start playing tracks.
-          </p>
-        )}
+                <div
+                  className="h-20 w-20 shrink-0"
+                  style={{
+                    background: track.thumbnail
+                      ? 'var(--bg-card)'
+                      : 'linear-gradient(135deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08))',
+                  }}
+                >
+                  {track.thumbnail ? (
+                    <img src={track.thumbnail} alt={track.title} className="h-full w-full object-cover" />
+                  ) : null}
+                </div>
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-white">{track.title}</p>
+                    <p className="truncate text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                      {track.artist}
+                    </p>
+                  </div>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1db954] text-black">
+                    <Play className="ml-0.5 h-4 w-4" fill="currentColor" />
+                  </span>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div
+              className="rounded-2xl px-5 py-6 text-sm md:col-span-2 xl:col-span-3"
+              style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}
+            >
+              Your recent listens will start showing up here once you play a few tracks.
+            </div>
+          )}
+        </div>
       </section>
 
-      <section className="mb-10">
-        <h3
-          className="mb-4 text-lg font-semibold"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Recommended For You
-        </h3>
+      <section>
+        <SectionHeader title="Made for you" action="Fresh picks" />
         {loadingRecommended ? (
-          <div className="hide-scrollbar flex gap-4 overflow-x-auto pb-2">
-            {[...Array(6)].map((_, index) => (
-              <SkeletonCard key={index} />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {[...Array(5)].map((_, index) => (
+              <div
+                key={index}
+                className="aspect-[0.88] animate-pulse rounded-[18px]"
+                style={{ background: 'var(--bg-card)' }}
+              />
             ))}
           </div>
-        ) : recommended.length > 0 ? (
-          <div
-            className="hide-scrollbar flex gap-4 overflow-x-auto pb-2"
-            style={{ WebkitOverflowScrolling: 'touch' }}
-          >
-            {recommended.map((track) => (
-              <TrackCard
+        ) : spotlightTracks.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            {spotlightTracks.map((track) => (
+              <PlayCard
                 key={track.youtubeId}
                 track={track}
                 onPlay={(selectedTrack) => handlePlay(selectedTrack, recommended)}
@@ -313,27 +233,78 @@ export default function Dashboard() {
             ))}
           </div>
         ) : (
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Pick a few favorite artists during onboarding to personalize this feed.
-          </p>
+          <div className="rounded-[22px] p-6 text-sm" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
+            Pick a few artists during onboarding and this space will turn into a more personal recommendation shelf.
+          </div>
         )}
       </section>
 
-      <section>
-        <h3
-          className="mb-4 text-lg font-semibold"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          Quick Picks
-        </h3>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {recommended.slice(0, 6).map((track) => (
-            <QuickPickRow
-              key={track.youtubeId}
-              track={track}
-              onPlay={(selectedTrack) => handlePlay(selectedTrack, recommended)}
-            />
-          ))}
+      <section className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+        <div>
+          <SectionHeader title="Recently played" action="See all" />
+          {loadingHistory ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[...Array(4)].map((_, index) => (
+                <div key={index} className="h-[88px] animate-pulse rounded-[18px]" style={{ background: 'var(--bg-card)' }} />
+              ))}
+            </div>
+          ) : recentlyPlayed.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {recentlyPlayed.slice(0, 6).map((track) => (
+                <PlayCard
+                  key={track.trackId || track.youtubeId || track._id}
+                  track={track}
+                  compact
+                  onPlay={(selectedTrack) => handlePlay(selectedTrack, recentlyPlayed)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[22px] p-6 text-sm" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)' }}>
+              There is no history yet. Search for a track and start building the home feed.
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[22px] p-6" style={{ background: 'var(--bg-card)' }}>
+            <div className="mb-4 flex items-center gap-2">
+              <Sparkles className="h-4 w-4" style={{ color: 'var(--accent-light)' }} />
+              <p className="text-sm font-semibold text-white">Your desktop mix</p>
+            </div>
+            <p className="text-3xl font-extrabold tracking-tight text-white">Focus Flow</p>
+            <p className="mt-2 text-sm leading-6" style={{ color: 'var(--text-secondary)' }}>
+              A compact listening setup inspired by Spotify’s desktop rhythm, tuned around your existing Reverberate playback stack.
+            </p>
+          </div>
+
+          <div className="rounded-[22px] p-6" style={{ background: 'var(--bg-card)' }}>
+            <div className="mb-4 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" style={{ color: 'var(--accent-light)' }} />
+              <p className="text-sm font-semibold text-white">Trending in your queue</p>
+            </div>
+            <div className="space-y-3">
+              {recommended.slice(0, 4).map((track, index) => (
+                <button
+                  key={track.youtubeId}
+                  type="button"
+                  onClick={() => handlePlay(track, recommended)}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition"
+                  style={{ background: 'var(--bg-elevated)' }}
+                >
+                  <span className="w-5 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-white">{track.title}</p>
+                    <p className="truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {track.artist}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     </div>

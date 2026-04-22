@@ -1,72 +1,88 @@
 import { create } from 'zustand'
 import { musicAPI, historyService } from '../services/api.js'
+import { parseDurationToSeconds } from '../utils/formatDuration.js'
 
-function parseDurationString(str) {
-  if (!str || typeof str !== 'string') return 180
-  const parts = str.split(':').map((p) => parseInt(p, 10))
-  if (parts.some((n) => isNaN(n))) return 180
-  if (parts.length === 1) return parts[0]
-  if (parts.length === 2) return parts[0] * 60 + parts[1]
-  return parts[0] * 3600 + parts[1] * 60 + parts[2]
+function resolveDurationSeconds(track) {
+  const candidates = [
+    track?.durationSeconds,
+    track?.duration,
+    track?.lengthSeconds,
+    track?.length,
+  ]
+
+  for (const candidate of candidates) {
+    const seconds = parseDurationToSeconds(candidate)
+    if (seconds > 0) return seconds
+  }
+
+  return 0
 }
 
 const usePlayerStore = create((set, get) => ({
+  currentTrack: null,
+  richTrack: null,
+  isEnriching: false,
+  isPlaying: false,
+  progress: 0,
+  duration: 0,
+  volume: 0.8,
+  isShuffle: false,
+  repeatMode: 'none',
+  queue: [],
+  queueIndex: 0,
 
-  // ─── Core State ──────────────────────────────────────
-  currentTrack  : null,
-  richTrack     : null,
-  isEnriching   : false,
-  isPlaying     : false,
-  progress      : 0,
-  duration      : 0,
-  volume        : 0.8,
-  isShuffle     : false,
-  repeatMode    : 'none',   // 'none' | 'all' | 'one'
-  queue         : [],
-  queueIndex    : 0,
-
-  // ─── Extended State ───────────────────────────────────
-  currentTime   : 0,
-  youtubeId     : null,
-  sourceType    : null,     // 'youtube' | 'upload' | null
-  isBuffering   : false,
+  currentTime: 0,
+  youtubeId: null,
+  sourceType: null,
+  isBuffering: false,
   howlerInstance: null,
+  playerControls: null,
 
-  // ─── Setters ──────────────────────────────────────────
-  setRichTrack     : (data) => set({ richTrack: data }),
-  setEnriching     : (val)  => set({ isEnriching: val }),
-  setCurrentTime   : (time) => set({ currentTime: time }),
-  setDuration      : (dur)  => set({ duration: dur }),
-  setBuffering     : (val)  => set({ isBuffering: val }),
-  setYoutubeId     : (id)   => set({ youtubeId: id }),
-  setSourceType    : (type) => set({ sourceType: type }),
-  setIsPlaying     : (val)  => set({ isPlaying: val }),
+  setRichTrack: (data) => set({ richTrack: data }),
+  setEnriching: (val) => set({ isEnriching: val }),
+  setCurrentTime: (time) =>
+    set((state) => ({
+      currentTime: time,
+      progress: state.duration > 0 ? Math.min(1, Math.max(0, time / state.duration)) : 0,
+    })),
+  setDuration: (dur) =>
+    set((state) => ({
+      duration: dur,
+      progress: dur > 0 ? Math.min(1, Math.max(0, state.currentTime / dur)) : 0,
+      currentTrack: state.currentTrack
+        ? {
+            ...state.currentTrack,
+            durationSeconds: dur > 0 ? dur : state.currentTrack.durationSeconds,
+          }
+        : state.currentTrack,
+    })),
+  setBuffering: (val) => set({ isBuffering: val }),
+  setYoutubeId: (id) => set({ youtubeId: id }),
+  setSourceType: (type) => set({ sourceType: type }),
+  setIsPlaying: (val) => set({ isPlaying: val }),
   setHowlerInstance: (inst) => set({ howlerInstance: inst }),
-  setVolume        : (val)  =>
-    set({ volume: Math.min(1, Math.max(0, val)) }),
+  setPlayerControls: (controls) => set({ playerControls: controls }),
+  setVolume: (val) => set({ volume: Math.min(1, Math.max(0, val)) }),
 
-  // ─── Basic Playback ───────────────────────────────────
   play: (track) => {
-    const durationSeconds =
-      track.durationSeconds ?? parseDurationString(track.duration)
+    const durationSeconds = resolveDurationSeconds(track)
+
     set({
-      currentTrack : track,
-      isPlaying    : true,
-      progress     : 0,
-      currentTime  : 0,
-      duration     : durationSeconds > 0 ? durationSeconds : 180,
-      queue        : track.queue ?? get().queue,
+      currentTrack: track,
+      isPlaying: true,
+      progress: 0,
+      currentTime: 0,
+      duration: durationSeconds,
+      queue: track.queue ?? get().queue,
     })
   },
 
-  pause  : () => set({ isPlaying: false }),
-  resume : () => set({ isPlaying: true }),
+  pause: () => set({ isPlaying: false }),
+  resume: () => set({ isPlaying: true }),
 
-  seek: (position) =>
-    set({ progress: Math.min(1, Math.max(0, position)) }),
+  seek: (position) => set({ progress: Math.min(1, Math.max(0, position)) }),
 
-  toggleShuffle: () =>
-    set((s) => ({ isShuffle: !s.isShuffle })),
+  toggleShuffle: () => set((s) => ({ isShuffle: !s.isShuffle })),
 
   cycleRepeat: () =>
     set((s) => ({
@@ -82,7 +98,6 @@ const usePlayerStore = create((set, get) => ({
     set({ isPlaying: !isPlaying })
   },
 
-  // ─── Queue Navigation ─────────────────────────────────
   setQueue: (tracks, startIndex = 0) => {
     const safeQueue = Array.isArray(tracks) ? tracks : []
     const safeIndex = safeQueue.length
@@ -114,7 +129,6 @@ const usePlayerStore = create((set, get) => ({
 
     set({ queueIndex: next })
 
-    // Auto-route source type
     if (track.sourceType === 'upload' || track.fileUrl) {
       get().playUploadedTrack(track)
     } else {
@@ -139,7 +153,6 @@ const usePlayerStore = create((set, get) => ({
     }
   },
 
-  // ─── YouTube Track ────────────────────────────────────
   playYouTubeTrack: async (track) => {
     const { play, queue, queueIndex } = get()
     const trackId = track.youtubeId || track.id
@@ -147,87 +160,82 @@ const usePlayerStore = create((set, get) => ({
       (item) => (item.youtubeId || item.trackId || item.id || item._id) === trackId,
     )
 
-    // Start playback immediately — don't wait for enrichment
     play(track)
     set({
-      youtubeId  : track.youtubeId || track.id,
-      sourceType : 'youtube',
+      youtubeId: track.youtubeId || track.id,
+      sourceType: 'youtube',
+      isPlaying: true,
       isEnriching: true,
-      richTrack  : null,
-      queueIndex : foundIndex >= 0 ? foundIndex : queueIndex,
+      richTrack: null,
+      queueIndex: foundIndex >= 0 ? foundIndex : queueIndex,
     })
 
-    // Fire-and-forget history
     historyService
       .add(
         track.youtubeId || track.id,
         'youtube',
         track.title,
         track.artist,
-        track.thumbnail || ''
+        track.thumbnail || '',
       )
-      .then(() => console.log('[history] saved'))
-      .catch((e) => console.error('[history] failed', e))
+      .catch(() => {})
 
-    // Enrich with metadata in background
     try {
       const res = await musicAPI.getTrackDetails(
         track.youtubeId || track.id,
         track.title,
         track.artist,
-        track.thumbnail
+        track.thumbnail,
       )
       const enriched = res.data.track
+
       set((state) => ({
-        richTrack   : enriched,
-        isEnriching : false,
+        richTrack: enriched,
+        isEnriching: false,
         currentTrack: {
           ...state.currentTrack,
           ...enriched,
-          albumArt:
-            enriched.albumArt || state.currentTrack?.thumbnail,
+          albumArt: enriched.albumArt || state.currentTrack?.thumbnail,
+          durationSeconds:
+            enriched.durationSeconds ||
+            state.currentTrack?.durationSeconds ||
+            resolveDurationSeconds(enriched),
         },
       }))
-    } catch (err) {
-      console.error('[usePlayerStore] enrichment failed', err)
+    } catch {
       set({ isEnriching: false })
     }
   },
 
-  // ─── Uploaded Track ───────────────────────────────────
   playUploadedTrack: (track) => {
     const { queue, queueIndex } = get()
     const trackId = track._id || track.id
     const foundIndex = queue.findIndex(
       (item) => (item._id || item.id || item.trackId || item.youtubeId) === trackId,
     )
-    const durationSeconds =
-      track.durationSeconds ??
-      parseDurationString(track.duration)
+    const durationSeconds = resolveDurationSeconds(track)
 
     set({
-      currentTrack : track,
-      sourceType   : 'upload',
-      isPlaying    : true,
-      progress     : 0,
-      currentTime  : 0,
-      duration     : durationSeconds > 0 ? durationSeconds : 180,
-      richTrack    : null,
-      youtubeId    : null,
-      queueIndex   : foundIndex >= 0 ? foundIndex : queueIndex,
+      currentTrack: track,
+      sourceType: 'upload',
+      isPlaying: true,
+      progress: 0,
+      currentTime: 0,
+      duration: durationSeconds,
+      richTrack: null,
+      youtubeId: null,
+      queueIndex: foundIndex >= 0 ? foundIndex : queueIndex,
     })
 
-    // Fire-and-forget history
     historyService
       .add(
         track._id || track.id,
         'upload',
         track.title,
         track.artist,
-        track.thumbnail || track.coverUrl || ''
+        track.thumbnail || track.coverUrl || '',
       )
-      .then(() => console.log('[history] saved'))
-      .catch((e) => console.error('[history] failed', e))
+      .catch(() => {})
   },
 }))
 

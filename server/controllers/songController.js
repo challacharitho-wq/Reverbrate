@@ -10,16 +10,34 @@ const notImplemented = (_req, res) =>
 
 // ─── YouTube Search ───────────────────────────────────
 export async function searchSongs(req, res) {
-  const query = String(req.query.q || req.query.query || '').trim()
+  const query = String(
+    req.query.q ||
+    req.query.query ||
+    ''
+  ).trim()
+
   if (!query) {
-    return res.status(400).json({ message: 'Missing search query' })
+    return res.status(400).json({
+      message: 'Missing search query'
+    })
   }
+
   try {
     const results = await youtubeHelper.searchVideos(query, 20)
     res.status(200).json({ results })
   } catch (err) {
     console.error('[songController] searchSongs failed', err)
-    res.status(500).json({ message: 'Search failed' })
+    const upstreamMessage =
+      err.response?.data?.error?.message ||
+      err.message ||
+      'Search failed'
+
+    const status =
+      err.response?.status === 400 || err.response?.status === 403
+        ? 502
+        : 500
+
+    res.status(status).json({ message: upstreamMessage })
   }
 }
 
@@ -80,7 +98,17 @@ export async function getYouTubeDetails(req, res) {
     res.status(200).json({ track })
   } catch (err) {
     console.error('[songController] getYouTubeDetails failed', err)
-    res.status(500).json({ message: 'Failed to load video details' })
+    const upstreamMessage =
+      err.response?.data?.error?.message ||
+      err.message ||
+      'Failed to load video details'
+
+    const status =
+      err.response?.status === 400 || err.response?.status === 403
+        ? 502
+        : 500
+
+    res.status(status).json({ message: upstreamMessage })
   }
 }
 

@@ -12,27 +12,27 @@ import recommendRoutes from './routes/recommendRoutes.js'
 const app = express()
 const PORT = Number(process.env.PORT) || 5000
 
-
-const allowedOrigins = [
-  'http://localhost:5173',
-  process.env.CLIENT_URL, // ✅ production frontend
-]
-
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow requests with no origin (mobile apps, curl, etc.)
-      if (!origin) return callback(null, true)
+      const allowed = [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5175',
+        'http://localhost:5176',
+        'https://reverbrate-omega.vercel.app',
+      ]
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true)
+      if (!origin || allowed.includes(origin)) {
+        callback(null, true)
       } else {
-        return callback(new Error('Not allowed by CORS'))
+        callback(new Error('CORS: ' + origin))
       }
     },
     credentials: true,
   })
 )
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 

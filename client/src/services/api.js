@@ -1,10 +1,16 @@
 import axios from 'axios'
 
 export const AUTH_TOKEN_KEY = 'reverberate_token'
-const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ||
-           'http://localhost:5000/api',
+
+const baseURL = import.meta.env.VITE_API_URL ||
+  'https://reverbrate-server.onrender.com/api'
+
+export const API = axios.create({
+  baseURL,
+  withCredentials: true,
 })
+
+
 
 // Attach token to every request
 API.interceptors.request.use((req) => {
@@ -47,7 +53,9 @@ export const likeAPI = {
 // ─── Music / Songs ───────────────────────────────────
 export const musicAPI = {
   search: (query) =>
-    API.get(`/songs/search?query=${encodeURIComponent(query)}`),
+    API.get('/songs/search', {
+      params: { q: query, query: query }
+    }),
 
   getTrackDetails: (youtubeId, title, artist, thumbnail) =>
     API.get('/songs/track/details', {
